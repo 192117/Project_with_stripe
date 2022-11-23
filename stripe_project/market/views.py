@@ -1,6 +1,6 @@
 from django.views.generic import TemplateView
 from rest_framework.generics import RetrieveAPIView
-from .models import Item, Order
+from .models import Item, Order, Discount, Tax
 from .serializers import ItemSerializer
 from rest_framework.renderers import TemplateHTMLRenderer
 from rest_framework.response import Response
@@ -52,7 +52,7 @@ def buy_item(request, id):
             {
                 "name": item.name,
                 "quantity": 1,
-                "currency": "usd",
+                "currency": item.currency,
                 "amount": item.price,
             },
         ],
@@ -67,15 +67,13 @@ def buy_order(request, id):
     order = Order.objects.get(id=id)
     stripe.api_key = STRIPE_SECRET_KEY
     items = []
-    total = 0
     for item in order.items.all():
         items.append({
-                "name": item.name,
-                "quantity": 1,
-                "currency": "usd",
-                "amount": item.price,
+            "name": item.name,
+            "quantity": 1,
+            "currency": item.currency,
+            "amount": item.price,
             })
-        total += item.price
     checkout_session = stripe.checkout.Session.create(
         success_url='http://127.0.0.1:8000/success',
         cancel_url='http://127.0.0.1:8000/cancel',
