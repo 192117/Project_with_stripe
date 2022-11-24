@@ -1,0 +1,28 @@
+version: '3.9'
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - db
+    ports:
+      - '8000:8000'
+    command: >
+      bash -c " python stripe_project/manage.py makemigrations
+      && python stripe_project/manage.py migrate
+      && python stripe_project/manage.py runserver 0.0.0.0:8000"
+  db:
+    restart: always
+    image: postgres
+    container_name: stripe_db
+    env_file:
+      - stripe_project/.docker_env
+    expose:
+      - '5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+
+volumes:
+  postgres_data:

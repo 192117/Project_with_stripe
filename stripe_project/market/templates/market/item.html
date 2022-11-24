@@ -9,14 +9,36 @@
 <body>
     <h1>{{ item.name }}</h1>
     <p>{{ item.description }}</p>
-    <p>{{ item.price }}</p>
-    <button type="button" id="checkout-button">Купить</button>
+    <p>USD: {{ item.price_usd }}</p>
+    <p>EUR: {{ item.price_eur }}</p>
+    <button type="button" id="checkout-button_usd">Купить в долларах</button>
+    <button type="button" id="checkout-button_eur">Купить в евро</button>
 </body>
 <script type="text/javascript">
     var stripe = Stripe("{{ stripe_key }}");
-    var checkoutButton = document.getElementById("checkout-button");
-    checkoutButton.addEventListener("click", function () {
-      fetch("{% url 'buy_item' item.id %}", {
+    var checkoutButton_usd = document.getElementById("checkout-button_usd");
+    var checkoutButton_eur = document.getElementById("checkout-button_eur");
+    checkoutButton_usd.addEventListener("click", function () {
+      fetch("{% url 'buy_item' item.id 'usd' %}", {
+        method: "GET",
+      })
+        .then(function (response) {
+          return response.json();
+        })
+        .then(function (session) {
+          return stripe.redirectToCheckout({ sessionId: session.id });
+        })
+        .then(function (result) {
+          if (result.error) {
+            alert(result.error.message);
+          }
+        })
+        .catch(function (error) {
+          console.error("Error:", error);
+        });
+    });
+    checkoutButton_eur.addEventListener("click", function () {
+      fetch("{% url 'buy_item' item.id 'eur' %}", {
         method: "GET",
       })
         .then(function (response) {

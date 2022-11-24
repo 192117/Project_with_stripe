@@ -10,14 +10,17 @@ from django.http import JsonResponse
 
 
 class CancelView(TemplateView):
+    ''' View for URL the customer will be directed to if they decide to cancel payment and return to your website. '''
     template_name = 'cancel.html'
 
 
 class SuccessView(TemplateView):
+    ''' View for URL to which Stripe should send customers when payment or setup is complete. '''
     template_name = 'success.html'
 
 
 class ItemDetailView(RetrieveAPIView):
+    ''' View return HTML for "item/<int:id>/" '''
     model = Item
     serializer_class = ItemSerializer
     renderer_classes = [TemplateHTMLRenderer]
@@ -31,6 +34,7 @@ class ItemDetailView(RetrieveAPIView):
 
 
 class CartDetailView(RetrieveAPIView):
+    ''' View return HTML for "cart/<int:id>/" '''
     model = Order
     serializer_class = ItemSerializer
     renderer_classes = [TemplateHTMLRenderer]
@@ -42,19 +46,24 @@ class CartDetailView(RetrieveAPIView):
         return Response({'order': order, 'stripe_key': stripe_key})
 
 
-def buy_item(request, id):
+def buy_item(request, id, currency='usd'):
     item = Item.objects.get(id=id)
     stripe.api_key = STRIPE_SECRET_KEY
+    data = {
+        "name": item.name,
+        "quantity": 1,
+        "currency": currency,
+        "amount": 0,
+    }
+    if currency == 'usd':
+        data['amount']=item.price_usd
+    else:
+        data['amount'] = item.price_eur
     checkout_session = stripe.checkout.Session.create(
         success_url='http://127.0.0.1:8000/success',
         cancel_url='http://127.0.0.1:8000/cancel',
         line_items=[
-            {
-                "name": item.name,
-                "quantity": 1,
-                "currency": item.currency,
-                "amount": item.price,
-            },
+            data,
         ],
         mode="payment",
     )
@@ -63,22 +72,38 @@ def buy_item(request, id):
     })
 
 
-def buy_order(request, id):
+def buy_order(request, id, currency='usd'):
     order = Order.objects.get(id=id)
+    disc = Discount.objects.get(order=order.id).first() # last coupon
+    tax = Tax.objects.get(order=order.id).first() # last tax
     stripe.api_key = STRIPE_SECRET_KEY
     items = []
-    for item in order.items.all():
-        items.append({
-            "name": item.name,
-            "quantity": 1,
-            "currency": item.currency,
-            "amount": item.price,
+    if currency == 'usd':
+        for item in order.items.all():
+            items.append({
+                "name": item.name,
+                "quantity": 1,
+                "currency": currency,
+                "amount": item.price_usd,
+                'tax_rates': [tax.stripe_tax_id]
             })
+        discount = disc.stripe_usd_id
+    else:
+        for item in order.items.all():
+            items.append({
+                "name": item.name,
+                "quantity": 1,
+                "currency": currency,
+                "amount": item.price_eur,
+                'tax_rates': [tax.stripe_tax_id]
+            })
+        discount = disc.stripe_eur_id
     checkout_session = stripe.checkout.Session.create(
         success_url='http://127.0.0.1:8000/success',
         cancel_url='http://127.0.0.1:8000/cancel',
         line_items=items,
         mode="payment",
+        discounts=[{'coupon': discount},]
     )
     return JsonResponse({
         'id': checkout_session.id
